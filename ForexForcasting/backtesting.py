@@ -2,7 +2,7 @@ from typing import List, Union
 from datetime import datetime
 from ForexForcasting.models import TimeSeriesModel
 from ForexForcasting.results import ForecastResults
-
+from ForexForcasting.preprocessing import Preprocessor
 
 class BacktestWindow:
 
@@ -164,14 +164,18 @@ class Backtester:
     forecasting models.
     :param results: An instance of YourResultsClass representing the results
     collector.
+    :param preprocessor: An instance of Preprocessor representing the
+     data preprocessor.
     """
     def __init__(
             self,
             backtest_dataset: TimeseriesBacktestDataset,
             models: List[TimeSeriesModel],
             results: ForecastResults,
+            preprocessor: Preprocessor
     ) -> None:
         self.backtest_dataset = backtest_dataset
+        self.preprocessor = preprocessor
         self.models = models
         self.results = results
 
@@ -204,10 +208,13 @@ class Backtester:
         :param y_train: The target values of the training window.
         :param y_test: The target values of the test window.
         """
-
+        self.preprocessor.fit(y_train)
+        y_train = self.preprocessor.transform(y_train)
+        y_test = self.preprocessor.transform(y_test)
         for model in self.models:
             model.fit(y_train)
             forecast = model.predict(horizon=len(y_test))
+            forecast = self.preprocessor.inverse_transform(forecast)
             self.results.add_forecast(
                 window_index=window_index,
                 fit_model=model,

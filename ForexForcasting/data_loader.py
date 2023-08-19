@@ -2,6 +2,15 @@ import os
 import re
 import pandas as pd
 from datetime import datetime
+import json
+
+
+class ConfigLoader:
+
+    def load(self, path):
+        with open(path, 'r') as j:
+            config = json.loads(j.read())
+        return config
 
 
 class ForexLoader:

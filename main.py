@@ -1,16 +1,18 @@
 import configparser
+import os
 import sys
-from ForexForcasting.data_loader import ForexLoader
+from ForexForcasting.data_loader import ForexLoader, ConfigLoader
 from ForexForcasting.backtesting import TimeseriesBacktestDataset
 from ForexForcasting.backtesting import Backtester, BacktestWindow
 from ForexForcasting.models import RandomWalk, ARIMA
 from ForexForcasting.results import ForecastResults
+from ForexForcasting.preprocessing import Preprocessor
 
-def main(config):
+def main(main_config):
     forex_loader = ForexLoader()
     data = forex_loader.load(
-        source_type=config['general']['source_type'],
-        path=config['general']['path']
+        source_type=main_config['general']['source_type'],
+        path=main_config['general']['path']
     )
     data = data[data["currency_pair"] == "USD/COP"]
     data = data[data['Date'].dt.year > 2015]
@@ -23,6 +25,11 @@ def main(config):
             max_test_window_length=1
         )
     )
+    config_loader = ConfigLoader()
+    preprocessing_config = config_loader.load(
+        main_config['general']['preprocessing_config_path']
+    )
+    preprocessor = Preprocessor(preprocessing_config)
     models = [
         RandomWalk(),
         ARIMA(1, 1, 0),
@@ -31,7 +38,8 @@ def main(config):
     backtester = Backtester(
         backtest_dataset=backtest_dataset,
         models=models,
-        results=ForecastResults(backtest_dataset)
+        results=ForecastResults(backtest_dataset),
+        preprocessor=preprocessor
     )
     backtester.run()
     backtester.results.plot_error_over_time(
