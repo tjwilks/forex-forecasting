@@ -12,12 +12,6 @@ This package is for the development of models to forecast forex.
 4) run main.py config/config.ini (or own config file)
 
 ### Package development requirements
-Initial Setup:
-1. basic backtesting framework
-2. random walk model
-3. overall error results 
-4. error over time results
-5. basic plotting functionality (ts over time)
 
 Macro-economic implementation: 
 1. acquire taylor rule fundamental data

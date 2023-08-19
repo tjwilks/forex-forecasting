@@ -1,6 +1,7 @@
 import os
 import re
 import pandas as pd
+from datetime import datetime
 
 
 class ForexLoader:
@@ -27,6 +28,10 @@ class ForexLoader:
         return pd.concat(datasets, axis=0)
 
     def load_from_csv(self, path):
-        data = pd.read_csv(path)
+        data = pd.read_csv(
+            path,
+            parse_dates=['Date'],
+            date_format="%Y-%m-%d"
+        )
         data['currency_pair'] = f"USD/{os.path.basename(path)[:3]}"
         return data
