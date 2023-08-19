@@ -19,13 +19,13 @@ Initial Setup:
 4. error over time results
 5. basic plotting functionality (ts over time)
 
-Macro-economic implmentation: 
-1. aquire taylor rule fundermental data
-2. aquire IRP data
-3. implment basic taylor rule funcdermental model (Rossi)
+Macro-economic implementation: 
+1. acquire taylor rule fundamental data
+2. acquire IRP data
+3. implement basic taylor rule fundamental model (Rossi)
 4. random walk comparison
 
-LSTM implmentation
+LSTM implementation
 1. implement LSTM model
 2. random walk comparison
 
@@ -36,7 +36,7 @@ Sentiment analysis implementation
 4. sentiment over time plotting
 
 Model selection and adaptive Hedge
-1. Implmenent adaptive Hedge model
+1. implement adaptive Hedge model
 
 
 
