@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import List, Optional
+from typing import List, Optional, Dict, Union
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
@@ -17,12 +17,18 @@ class TimeSeriesModel(ABC):
         return self._accepts_regressors
 
     @abstractmethod
-    def fit(self, training_data: List[float]) -> None:
+    def fit(
+            self,
+            y_train: List[float],
+            regressors_train: Optional[Dict[str, List[Union[float, int]]]]
+    ) -> None:
         """
         Fit the model to the training data.
 
         Parameters:
-            training_data (List[float]): The training data.
+            y_train (List[float]): The target values for training.
+            regressors_train: Optional[Dict[str, List[Union[float, int]]]]:
+                The regressor data
         """
         pass
 
@@ -56,12 +62,19 @@ class RandomWalk(TimeSeriesModel):
         self.last_observation_seen: Optional[float] = None
         self._accepts_regressors: bool = False
 
-    def fit(self, y_train: List[float]) -> None:
+    def fit(
+        self,
+        y_train:
+        List[float],
+        regressors_train: Optional[Dict[str, List[Union[float, int]]]] = None
+    ) -> None:
         """
         Fit the Random Walk model.
 
         Parameters:
             y_train (List[float]): The target values for training.
+            regressors_train: Optional[Dict[str, List[Union[float, int]]]]: 
+                The regressor data
         """
         self.last_observation_seen = y_train[-1]
 
@@ -101,18 +114,23 @@ class ARIMA(TimeSeriesModel):
         self.model: Optional[SARIMAX] = None
         self._accepts_regressors: bool = False
 
-    def fit(self, y: List[float]) -> None:
+    def fit(
+        self,
+        y_train: List[float],
+        regressors_train: Optional[Dict[str, List[Union[float, int]]]] = None
+    ) -> None:
         """
         Fit the ARIMA model.
 
         Parameters:
-            y (List[float]): The target values.
-
+            y_train (List[float]): The target values.
+            regressors_train: Optional[Dict[str, List[Union[float, int]]]]:
+                The regressor data
         Returns:
             None
         """
         self.model = SARIMAX(
-            endog=y,
+            endog=y_train,
             order=self.order,
             trend=self.trend_type,
             enforce_invertibility=False,
@@ -142,3 +160,46 @@ class ARIMA(TimeSeriesModel):
                     f"I: {self.order[1]}, " \
                     f"MA: {self.order[2]})"
         return reference
+
+
+class UIRPForecaster(TimeSeriesModel):
+    _accepts_regressors = True
+
+    def __init__(self):
+        self.current_exchange_rate: Optional[float] = None
+        self.last_ir_delta: Optional[float] = None
+
+    def fit(self, y_train: List[float], regressors_train: Dict[str, List[Union[float, int]]]) -> None:
+        """
+        Fit the UIRPForecaster model to the training data.
+
+        y_train (List[float]): Historical exchange rate data.
+        regressors_train Dict[str, List[Union[float, int]]]: Dictionary
+            containing historical interest rate delta between two countries
+            with exchange rate
+        """
+        self.current_exchange_rate = y_train[-1]
+        self.last_ir_delta = regressors_train['interest_rate_delta'][-1]/100
+
+    def predict(self, horizon: int) -> List[float]:
+        """
+        Make UIRP-based exchange rate change prediction.
+
+        :return: The predicted change in exchange rate.
+        """
+        last_exchange_rate = self.current_exchange_rate
+        weekly_ir_delta = self.last_ir_delta / 52
+        prediction = []
+        for period in range(1, horizon+1):
+            predicted_exchange_rate = last_exchange_rate * (1-weekly_ir_delta)
+            prediction.append(predicted_exchange_rate)
+            last_exchange_rate = predicted_exchange_rate
+        return prediction
+
+    def get_reference(self) -> str:
+        """
+        Get a reference string for the UIRPForecaster model.
+
+        :return: The reference string.
+        """
+        return "UIRP Forecaster Model"
