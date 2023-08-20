@@ -1,8 +1,9 @@
-from typing import List, Union
+from typing import List, Union, Dict
 from datetime import datetime
 from ForexForcasting.models import TimeSeriesModel
 from ForexForcasting.results import ForecastResults
 from ForexForcasting.preprocessing import Preprocessor
+
 
 class BacktestWindow:
 
@@ -81,12 +82,15 @@ class TimeseriesBacktestDataset:
     :param y_data: A list of target values for the time series.
     :param window: An instance of BacktestWindow representing the backtest
     window.
+    :param regressor_data: A list of lists representing additional regressor
+    data (optional).
     """
     def __init__(
             self,
             dates: List[datetime.date],
             y_data: List[Union[float, int]],
-            window: BacktestWindow
+            window: BacktestWindow,
+            regressor_data: Dict[str, List[Union[float, int]]] = None,
     ):
         assert len(dates) == len(y_data), f"dates and y_data parameters must "\
                                           f"be of same length." \
@@ -94,6 +98,7 @@ class TimeseriesBacktestDataset:
                                           f"\ny_data length {len(y_data)}"
         self.dates = dates
         self.y_data = y_data
+        self.regressor_data = regressor_data
         self.window = window
 
     def _get_start_and_end_index(self, train_or_test):
@@ -114,10 +119,11 @@ class TimeseriesBacktestDataset:
 
     def get_data(self, requested_data, train_or_test):
         """
-        Get the requested data (target values, dates) for the
+        Get the requested data (target values, dates, or regressors) for the
         specified window.
 
-        :param requested_data: The type of data to retrieve ("y", "dates").
+        :param requested_data: The type of data to retrieve ("y", "dates", or
+         "regressors").
         :param train_or_test: Either "train" or "test" to specify the window
         type.
         :return: The requested data for the specified window.
@@ -129,8 +135,15 @@ class TimeseriesBacktestDataset:
             return self.y_data[start_index: end_index+1]
         elif requested_data == "dates":
             return self.dates[start_index: end_index+1]
+        elif requested_data == "regressors":
+            if self.regressor_data:
+                return {regressor_name: regressor[start_index: end_index+1]
+                        for regressor_name, regressor in self.regressor_data.items()}
+            else:
+                return None
         else:
-            raise ValueError("requested_data must be 'y' or 'dates'")
+            raise ValueError("requested_data must be 'y', 'dates' "
+                             "or regressors")
 
     def get_data_for_forecast(self):
         """
@@ -143,6 +156,8 @@ class TimeseriesBacktestDataset:
             "y_test": self.get_data("y", "test"),
             "dates_train": self.get_data("dates", "train"),
             "dates_test": self.get_data("dates", "test"),
+            "regressors_train": self.get_data("regressors", 'train'),
+            "regressors_test": self.get_data("regressors", 'test'),
             "window_index": self.window.index
          }
         return data_for_forecast
@@ -160,19 +175,19 @@ class Backtester:
 
     :param backtest_dataset: An instance of TimeseriesBacktestDataset
      representing the dataset.
+    :param preprocessor: An instance of YourPreprocessorClass representing the
+    data preprocessor.
     :param models: A list of YourModelClass instances representing the
     forecasting models.
     :param results: An instance of YourResultsClass representing the results
     collector.
-    :param preprocessor: An instance of Preprocessor representing the
-     data preprocessor.
     """
     def __init__(
             self,
             backtest_dataset: TimeseriesBacktestDataset,
+            preprocessor: Preprocessor,
             models: List[TimeSeriesModel],
             results: ForecastResults,
-            preprocessor: Preprocessor
     ) -> None:
         self.backtest_dataset = backtest_dataset
         self.preprocessor = preprocessor
@@ -196,27 +211,60 @@ class Backtester:
             self.forecast_models(
                 window_index=data_for_forecast['window_index'],
                 y_train=data_for_forecast['y_train'],
-                y_test=data_for_forecast['y_test']
+                y_test=data_for_forecast['y_test'],
+                regressors_train=data_for_forecast['regressors_train'],
+                regressors_test=data_for_forecast['regressors_test']
             )
             self.backtest_dataset.window.next()
 
-    def forecast_models(self, window_index: int, y_train: List[float], y_test: List[float]):
+    def forecast_models(self, window_index: int, y_train: List[float], y_test: List[float],
+                        regressors_train: Dict[str, List[Union[float, int]]]=None,
+                        regressors_test: Dict[str, List[Union[float, int]]]=None):
         """
         Forecast target values using the specified models.
 
         :param window_index: The index of the current backtest window.
         :param y_train: The target values of the training window.
         :param y_test: The target values of the test window.
+        :param regressors_train: Additional regressor data for the training
+        window (optional).
+        :param regressors_test: Additional regressor data for the test window
+        (optional).
         """
+
+        regressors_train, regressors_test = self.preprocess_regressors(
+            regressors_train=regressors_train,
+            regressors_test=regressors_test
+        )
         self.preprocessor.fit(y_train)
         y_train = self.preprocessor.transform(y_train)
         y_test = self.preprocessor.transform(y_test)
         for model in self.models:
-            model.fit(y_train)
-            forecast = model.predict(horizon=len(y_test))
+            if model.accepts_regressors and regressors_train:
+                model.fit(y_train, regressors_train)
+                forecast = model.predict(horizon=len(y_test))
+            else:
+                model.fit(y_train)
+                forecast = model.predict(horizon=len(y_test))
             forecast = self.preprocessor.inverse_transform(forecast)
             self.results.add_forecast(
                 window_index=window_index,
                 fit_model=model,
                 forecast=forecast
             )
+
+    def preprocess_regressors(self,
+                              regressors_train: Dict[str, List[Union[float, int]]],
+                              regressors_test:  Dict[str, List[Union[float, int]]]):
+        if regressors_train:
+            for regressor_name in regressors_train.keys():
+                regressor_train = regressors_train[regressor_name]
+                regressor_test = regressors_test[regressor_name]
+                self.preprocessor.fit(regressor_train)
+                regressors_train[regressor_name] = self.preprocessor.transform(
+                    regressor_train
+                )
+                regressors_test[regressor_name] = self.preprocessor.transform(
+                    regressor_test
+                )
+        return regressors_train, regressors_test
