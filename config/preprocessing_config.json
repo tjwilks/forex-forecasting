@@ -1,0 +1,7 @@
+{
+    "null_imputation": {
+        "strategy": "simple",
+        "args": {"strategy":  "mean"},
+        "inverse_transform": false
+    }
+}
