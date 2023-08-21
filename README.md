@@ -13,11 +13,6 @@ This package is for the development of models to forecast forex.
 
 ### Package development requirements
 
-Macro-economic implementation: 
-1. acquire taylor rule fundamental data
-2. implement basic taylor rule fundamental model (Rossi)
-3. random walk comparison
-
 LSTM implementation
 1. implement LSTM model
 2. random walk comparison
