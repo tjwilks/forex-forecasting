@@ -4,7 +4,7 @@ import sys
 
 import pandas as pd
 
-from ForexForcasting.data_loader import ForexLoader, ConfigLoader, InterestRateLoader
+from ForexForcasting.data_loader import ForexLoader, ConfigLoader, InterestRateLoader, InflationRateLoader, GDPGrowthRateLoader
 from ForexForcasting.backtesting import TimeseriesBacktestDataset
 from ForexForcasting.backtesting import Backtester, BacktestWindow
 from ForexForcasting.models import RandomWalk, ARIMA, UIRPForecaster
@@ -17,15 +17,27 @@ pd.set_option('display.width', 1000000)  # Set to None to display all columns
 def main(main_config):
     forex_loader = ForexLoader()
     interest_rate_loader = InterestRateLoader()
-    data = forex_loader.load(
-        source_type=main_config['general']['source_type'],
+    inflation_rate_loader = InflationRateLoader()
+    gdp_growth_rate_loader = GDPGrowthRateLoader()
+    forex_data = forex_loader.load(
+        source_type=main_config['general']['forex_source_type'],
         path=main_config['general']['forex_data_path']
     )
     interest_rate_data = interest_rate_loader.load(
-        source_type=main_config['general']['source_type'],
+        source_type=main_config['general']['interest_rate_source_type'],
         path=main_config['general']['interest_rate_data_path']
     )
-    data = data.merge(interest_rate_data, on=["currency_pair", 'date'])
+    inflation_rate_data = inflation_rate_loader.load(
+        source_type=main_config['general']['inflation_rate_source_type'],
+        path=main_config['general']['inflation_rate_data_path']
+    )
+    gdp_growth_rate_data = gdp_growth_rate_loader.load(
+        source_type=main_config['general']['gdp_growth_rate_source_type'],
+        path=main_config['general']['gdp_growth_rate_data_path']
+    )
+    data = forex_data.merge(interest_rate_data, on=["currency_pair", 'date'])
+    data = data.merge(inflation_rate_data, on=["currency_pair", 'date'])
+    data = data.merge(gdp_growth_rate_data, on=["currency_pair", 'date'])
     data = data[data["currency_pair"] == "USD/COP"]
     data = data[data['date'].dt.year > 2015]
     backtest_dataset = TimeseriesBacktestDataset(
