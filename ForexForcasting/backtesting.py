@@ -1,4 +1,4 @@
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Tuple
 from datetime import datetime
 from ForexForcasting.models import TimeSeriesModel
 from ForexForcasting.results import ForecastResults
@@ -6,17 +6,24 @@ from ForexForcasting.preprocessing import Preprocessor
 
 
 class BacktestWindow:
+    """
+     A class representing a sliding window for backtesting time series data.
 
+    This class defines a sliding window over a time series dataset for use in
+    backtesting. The window's training and test periods slide through the data,
+    allowing for the evaluation of forecasting models over different time intervals.
+    """
     def __init__(self,
                  n_obs: int,
                  train_window_len: int,
                  max_test_window_length: int
                  ) -> None:
         """
-        Initializes a new instance of the Window class.
+        Initializes a new instance of the BacktestWindow class.
 
-        :param n_obs: total number of observations
+        :param n_obs: The total number of observations in the time series.
         :param train_window_len: The length of the training window.
+        :param max_test_window_length: The maximum length of the test window.
 
         """
         max_time_series_index = n_obs - 1
@@ -173,15 +180,10 @@ class Backtester:
     """
     A class representing a backtester for time series forecasting.
 
-    :param backtest_dataset: An instance of TimeseriesBacktestDataset
-     representing the dataset.
-    :param preprocessor: An instance of YourPreprocessorClass representing the
-    data preprocessor.
-    :param models: A list of YourModelClass instances representing the
-    forecasting models.
-    :param results: An instance of YourResultsClass representing the results
-    collector.
-    :param mode: either "primary_model" or "model_selection"
+    This class performs backtesting of time series forecasting models on the
+    given dataset. It iterates through different windows, trains the models,
+    forecasts target values, and collects results.
+
     """
     def __init__(
             self,
@@ -191,6 +193,20 @@ class Backtester:
             results: ForecastResults,
             mode: str
     ) -> None:
+        """
+        Initialize the Backtester instance.
+
+        :param backtest_dataset: An instance of TimeseriesBacktestDataset
+            representing the dataset.
+        :param preprocessor: An instance of Preprocessor representing the
+            data preprocessor.
+        :param models: A list of TimeSeriesModel instances representing the
+            forecasting models.
+        :param results: An instance of ForecastResults representing the results
+            collector.
+        :param mode: Either "model_selection" or "primary_model" based on the
+            backtesting mode.
+        """
         self.backtest_dataset = backtest_dataset
         self.preprocessor = preprocessor
         self.models = models
@@ -201,16 +217,13 @@ class Backtester:
         """
         Run the backtesting process using the specified forecasting models.
 
-        The backtesting process involves iterating through the dataset's
-        windows,
+        The backtesting process involves iterating through the dataset's windows,
         forecasting target values using the specified models, and collecting
-        the results.
+         the results.
         """
         while self.backtest_dataset.window.is_not_last():
             data_for_forecast = self.backtest_dataset.get_data_for_forecast()
-            self.results.add_data_for_forecast(
-                data_for_forecast=data_for_forecast
-            )
+            self.results.add_data_for_forecast(data_for_forecast=data_for_forecast)
             self.forecast_models(
                 window_index=data_for_forecast['window_index'],
                 y_train=data_for_forecast['y_train'],
@@ -221,8 +234,8 @@ class Backtester:
             self.backtest_dataset.window.next()
 
     def forecast_models(self, window_index: int, y_train: List[float], y_test: List[float],
-                        regressors_train: Dict[str, List[Union[float, int]]]=None,
-                        regressors_test: Dict[str, List[Union[float, int]]]=None):
+                        regressors_train: Dict[str, List[Union[float, int]]] = None,
+                        regressors_test: Dict[str, List[Union[float, int]]] = None):
         """
         Forecast target values using the specified models.
 
@@ -230,11 +243,10 @@ class Backtester:
         :param y_train: The target values of the training window.
         :param y_test: The target values of the test window.
         :param regressors_train: Additional regressor data for the training
-        window (optional).
+            window (optional).
         :param regressors_test: Additional regressor data for the test window
-        (optional).
+            (optional).
         """
-
         regressors_train, regressors_test = self.preprocess_regressors(
             regressors_train=regressors_train,
             regressors_test=regressors_test
@@ -257,7 +269,20 @@ class Backtester:
 
     def preprocess_regressors(self,
                               regressors_train: Dict[str, List[Union[float, int]]],
-                              regressors_test:  Dict[str, List[Union[float, int]]]):
+                              regressors_test: Dict[str, List[Union[float, int]]]
+                              ) -> Tuple[Dict[str, List[Union[float, int]]],
+                                         Dict[str, List[Union[float, int]]]]:
+        """
+        Preprocess regressor data using the specified preprocessor.
+
+        :param regressors_train: Dictionary containing regressor names as keys
+            and their corresponding training data as values.
+        :param regressors_test: Dictionary containing regressor names as keys
+            and their corresponding test data as values.
+
+        :return: A tuple containing preprocessed regressor data for the training
+                 and test windows, respectively.
+        """
         if regressors_train:
             for regressor_name in regressors_train.keys():
                 regressor_train = regressors_train[regressor_name]
