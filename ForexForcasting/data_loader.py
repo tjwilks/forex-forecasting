@@ -2,6 +2,9 @@ import os
 import numpy as np
 import pandas as pd
 import json
+from datetime import datetime, timedelta
+import torch
+from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 
 
 class ConfigLoader:
@@ -24,9 +27,6 @@ class DataLoader:
                              'must be either "dir" or "csv"')
         return data
 
-
-class ForexLoader(DataLoader):
-
     def load_from_dir(self, path):
         filenames = [
             os.path.join(path, f) for f in os.listdir(path)
@@ -37,6 +37,9 @@ class ForexLoader(DataLoader):
             data = self.load_from_csv(file)
             datasets.append(data)
         return pd.concat(datasets, axis=0)
+
+
+class ForexLoader(DataLoader):
 
     def load_from_csv(self, path):
         data = pd.read_csv(
@@ -200,3 +203,65 @@ class GDPGrowthRateLoader(MacroLoader):
             lambda country_code: currency_code_dict[country_code]
         )
         return data
+
+
+class EconNewsDataLoader(DataLoader):
+
+    def __init__(self, date_downloaded):
+        self.date_downloaded = date_downloaded
+
+    def load_from_csv(self, path):
+        data = pd.read_csv(path)
+        data = data.drop(
+            columns=[col for col in data.columns if "Unnamed: " in col]
+        )
+        data.columns = ['all_data']
+        data = data[~data['all_data'].isna()]
+        dates = self.calculate_dates(data)
+        articles = self.extract_articles(data)
+        sentiment_scores = self.calculate_sentiment(articles)
+        data = pd.DataFrame(
+            {"date": pd.to_datetime(dates), "sentiment_score": sentiment_scores}
+        )
+        data = data.set_index("date").groupby("date").mean().resample('D').ffill()
+        data = data.resample('W').mean().reset_index()
+        data["currency_pair"] = f"USD/{os.path.basename(path)[:3]}"
+        return data
+
+    @staticmethod
+    def calculate_sentiment(articles):
+        model_name = 'distilbert-base-uncased'
+        tokenizer = DistilBertTokenizer.from_pretrained(model_name)
+        model = DistilBertForSequenceClassification.from_pretrained(
+            model_name, num_labels=3
+        )
+        inputs = tokenizer(articles, padding=True, truncation=True,
+                           return_tensors='pt')
+        with torch.no_grad():
+            outputs = model(**inputs)
+        sentiment_scores = outputs.logits.mean(dim=1).tolist()
+        return sentiment_scores
+
+
+    @staticmethod
+    def extract_articles(data):
+        first_article = data.iloc[1, :]
+        articles = data.loc[data['all_data'].str.startswith("\t"), "all_data"]
+        articles = pd.concat([first_article, articles], axis=0).to_list()
+        return articles
+
+    def calculate_dates(self, data):
+        days_ago = data[data['all_data'].str.contains("days ago")]
+        days_ago = days_ago['all_data'].str[:2].apply(
+            lambda day_ago:
+            datetime.strptime(self.date_downloaded, "%Y-%m-%d") -
+            timedelta(days=int(day_ago))
+        )
+        days_ago = days_ago.dt.date
+        dates = data.loc[data['all_data'].str.match(
+            r'^\d{4}-\d{2}-\d{2}'),
+                         "all_data"
+        ]
+        dates = pd.to_datetime(dates.str[:10], format="%Y-%m-%d").dt.date
+        dates = pd.concat([days_ago, dates], axis=0).to_list()
+        return dates
