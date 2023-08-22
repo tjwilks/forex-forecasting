@@ -5,29 +5,71 @@ import json
 from datetime import datetime, timedelta
 import torch
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
-
+from typing import List, Dict, Union
 
 class ConfigLoader:
+    """
+    ConfigLoader class to load configuration from JSON.
 
-    def load(self, path):
+    Methods:
+        load(path: str) -> dict:
+            Load the configuration from a JSON file.
+
+    """
+
+    def load(self, path: str) -> dict:
+        """
+        Load the configuration from a JSON file.
+
+        Parameters:
+            path (str): Path to the JSON file.
+
+        Returns:
+            dict: Loaded configuration.
+        """
         with open(path, 'r') as j:
             config = json.loads(j.read())
         return config
 
-
 class DataLoader:
+    """
+    DataLoader class to load data from different sources.
 
-    def load(self, source_type, path):
+    Methods:
+        load(source_type: str, path: str) -> pd.DataFrame:
+            Load data from a source based on source type.
+
+    """
+
+    def load(self, source_type: str, path: str) -> pd.DataFrame:
+        """
+        Load data from a source based on source type.
+
+        Parameters:
+            source_type (str): Type of data source ('dir' or 'csv').
+            path (str): Path to the data source.
+
+        Returns:
+            pd.DataFrame: Loaded data.
+        """
         if source_type == 'dir':
             data = self.load_from_dir(path)
         elif source_type == 'csv':
             data = self.load_from_csv(path)
         else:
-            raise ValueError("DataLoader load method's source_type argument"
-                             'must be either "dir" or "csv"')
+            raise ValueError("DataLoader load method's source_type argument must be either 'dir' or 'csv'")
         return data
 
-    def load_from_dir(self, path):
+    def load_from_dir(self, path: str) -> pd.DataFrame:
+        """
+        Load data from multiple CSV files in a directory.
+
+        Parameters:
+            path (str): Path to the directory.
+
+        Returns:
+            pd.DataFrame: Concatenated dataset from CSV files.
+        """
         filenames = [
             os.path.join(path, f) for f in os.listdir(path)
             if os.path.isfile(os.path.join(path, f))
@@ -38,10 +80,26 @@ class DataLoader:
             datasets.append(data)
         return pd.concat(datasets, axis=0)
 
-
 class ForexLoader(DataLoader):
+    """
+    ForexLoader class to load forex data.
 
-    def load_from_csv(self, path):
+    Methods:
+        load_from_csv(path: str) -> pd.DataFrame:
+            Load forex data from a CSV file.
+
+    """
+
+    def load_from_csv(self, path: str) -> pd.DataFrame:
+        """
+        Load forex data from a CSV file.
+
+        Parameters:
+            path (str): Path to the CSV file.
+
+        Returns:
+            pd.DataFrame: Loaded forex data.
+        """
         data = pd.read_csv(
             path,
             parse_dates=['Date'],
@@ -54,8 +112,28 @@ class ForexLoader(DataLoader):
 
 
 class MacroLoader(DataLoader):
+    """
+    MacroLoader class to load macroeconomic data.
 
-    def get_us_delta(self, data, macro_var):
+    Methods:
+        get_us_delta(data: pd.DataFrame, macro_var: str) -> pd.DataFrame:
+            Calculate the delta of a macroeconomic variable relative to the US.
+        convert_dates(data: pd.DataFrame) -> pd.DataFrame:
+            Convert date strings to pandas Timestamp objects.
+
+    """
+
+    def get_us_delta(self, data: pd.DataFrame, macro_var: str) -> pd.DataFrame:
+        """
+        Calculate the delta of a macroeconomic variable relative to the US.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing macroeconomic data.
+            macro_var (str): Macro variable name.
+
+        Returns:
+            pd.DataFrame: DataFrame with added delta column.
+        """
         us_data = data[data['currency'] == "USD"]
         us_data = us_data.drop(columns="currency")
         us_data = us_data.rename(columns={macro_var: f"us_{macro_var}"})
@@ -67,7 +145,16 @@ class MacroLoader(DataLoader):
         return data
 
     @staticmethod
-    def convert_dates(data):
+    def convert_dates(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Convert date strings to pandas Timestamp objects.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing date column.
+
+        Returns:
+            pd.DataFrame: DataFrame with converted date column.
+        """
         months = data['date'].str[-2:].astype(int)
         years = data['date'].str[:4].astype(int)
         data['date'] = [
@@ -75,10 +162,28 @@ class MacroLoader(DataLoader):
         ]
         return data
 
-
 class InterestRateLoader(MacroLoader):
+    """
+    InterestRateLoader class to load interest rate data.
 
-    def load_from_dir(self, path):
+    Methods:
+        load_from_dir(path: str) -> pd.DataFrame:
+            Load interest rate data from multiple files in a directory.
+        load_from_csv(path: str) -> pd.DataFrame:
+            Load interest rate data from a CSV file.
+
+    """
+
+    def load_from_dir(self, path: str) -> pd.DataFrame:
+        """
+        Load interest rate data from multiple files in a directory.
+
+        Parameters:
+            path (str): Path to the directory containing CSV files.
+
+        Returns:
+            pd.DataFrame: Loaded interest rate data.
+        """
         filenames = [
             os.path.join(path, f) for f in os.listdir(path)
             if os.path.isfile(os.path.join(path, f))
@@ -91,7 +196,16 @@ class InterestRateLoader(MacroLoader):
         data = self.get_us_delta(data, "interest_rate")
         return data
 
-    def load_from_csv(self, path):
+    def load_from_csv(self, path: str) -> pd.DataFrame:
+        """
+        Load interest rate data from a CSV file.
+
+        Parameters:
+            path (str): Path to the CSV file.
+
+        Returns:
+            pd.DataFrame: Loaded interest rate data.
+        """
         data = pd.read_csv(path)
         data = data.drop(
             columns=[col for col in data.columns if "Unnamed: " in col]
@@ -114,16 +228,42 @@ class InterestRateLoader(MacroLoader):
         data = data.set_index("date").resample('W').ffill().reset_index()
         return data
 
-
     @staticmethod
-    def get_currency_codes(data, path):
+    def get_currency_codes(data: pd.DataFrame, path: str) -> pd.DataFrame:
+        """
+        Get currency codes from the path and add them to the DataFrame.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing interest rate data.
+            path (str): Path to the CSV file.
+
+        Returns:
+            pd.DataFrame: DataFrame with added currency codes.
+        """
         data['currency'] = os.path.basename(path)[:3]
         return data
 
 
 class InflationRateLoader(MacroLoader):
+    """
+    InflationRateLoader class to load inflation rate data.
 
-    def load_from_csv(self, path):
+    Methods:
+        load_from_csv(path: str) -> pd.DataFrame:
+            Load inflation rate data from a CSV file.
+
+    """
+
+    def load_from_csv(self, path: str) -> pd.DataFrame:
+        """
+        Load inflation rate data from a CSV file.
+
+        Parameters:
+            path (str): Path to the CSV file.
+
+        Returns:
+            pd.DataFrame: Loaded inflation rate data.
+        """
         data = pd.read_csv(path)
         data = pd.melt(
             data,
@@ -148,7 +288,16 @@ class InflationRateLoader(MacroLoader):
         return data
 
     @staticmethod
-    def get_currency_codes(data):
+    def get_currency_codes(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Get currency codes and add them to the DataFrame.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing inflation rate data.
+
+        Returns:
+            pd.DataFrame: DataFrame with added currency codes.
+        """
         currency_code_dict = {
             "ARG": "ARS", "CHL": "CLP", "COL": "COP", "USA": "USD"
         }
@@ -159,8 +308,25 @@ class InflationRateLoader(MacroLoader):
 
 
 class GDPGrowthRateLoader(MacroLoader):
+    """
+    GDPGrowthRateLoader class to load GDP growth rate data.
 
-    def load_from_csv(self, path):
+    Methods:
+        load_from_csv(path: str) -> pd.DataFrame:
+            Load GDP growth rate data from a CSV file.
+
+    """
+
+    def load_from_csv(self, path: str) -> pd.DataFrame:
+        """
+        Load GDP growth rate data from a CSV file.
+
+        Parameters:
+            path (str): Path to the CSV file.
+
+        Returns:
+            pd.DataFrame: Loaded GDP growth rate data.
+        """
         data = pd.read_csv(path)
         data = data[data['Subject'] == "Gross domestic product - expenditure "
                                        "approach"]
@@ -182,7 +348,16 @@ class GDPGrowthRateLoader(MacroLoader):
         return data
 
     @staticmethod
-    def convert_dates(data):
+    def convert_dates(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Convert date strings to pandas Timestamp objects.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing date column.
+
+        Returns:
+            pd.DataFrame: DataFrame with converted date column.
+        """
         month_mapping = {1: 1, 2: 4, 3: 7,  4: 10}
         months = data['TIME'].str[-1:].apply(lambda q: month_mapping[int(q)])
         years = data['TIME'].str[:4].astype(int)
@@ -192,7 +367,16 @@ class GDPGrowthRateLoader(MacroLoader):
         return data
 
     @staticmethod
-    def get_currency_codes(data):
+    def get_currency_codes(data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Get currency codes and add them to the DataFrame.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing GDP growth rate data.
+
+        Returns:
+            pd.DataFrame: DataFrame with added currency codes.
+        """
         currency_code_dict = {
             "Argentina": "ARS",
             "Chile": "CLP",
@@ -206,11 +390,34 @@ class GDPGrowthRateLoader(MacroLoader):
 
 
 class EconNewsDataLoader(DataLoader):
+    """
+    EconNewsDataLoader class to load economic news sentiment data.
 
-    def __init__(self, date_downloaded):
+    Methods:
+        load_from_csv(path: str) -> pd.DataFrame:
+            Load economic news sentiment data from a CSV file.
+
+    """
+
+    def __init__(self, date_downloaded: str):
+        """
+        Initialize the EconNewsDataLoader.
+
+        Parameters:
+            date_downloaded (str): Date of data download.
+        """
         self.date_downloaded = date_downloaded
 
-    def load_from_csv(self, path):
+    def load_from_csv(self, path: str) -> pd.DataFrame:
+        """
+        Load economic news sentiment data from a CSV file.
+
+        Parameters:
+            path (str): Path to the CSV file.
+
+        Returns:
+            pd.DataFrame: Loaded economic news sentiment data.
+        """
         data = pd.read_csv(path)
         data = data.drop(
             columns=[col for col in data.columns if "Unnamed: " in col]
@@ -229,7 +436,16 @@ class EconNewsDataLoader(DataLoader):
         return data
 
     @staticmethod
-    def calculate_sentiment(articles):
+    def calculate_sentiment(articles: List[str]) -> List[float]:
+        """
+        Calculate sentiment scores for a list of articles.
+
+        Parameters:
+            articles (List[str]): List of article texts.
+
+        Returns:
+            List[float]: List of sentiment scores.
+        """
         model_name = 'distilbert-base-uncased'
         tokenizer = DistilBertTokenizer.from_pretrained(model_name)
         model = DistilBertForSequenceClassification.from_pretrained(
@@ -242,15 +458,32 @@ class EconNewsDataLoader(DataLoader):
         sentiment_scores = outputs.logits.mean(dim=1).tolist()
         return sentiment_scores
 
-
     @staticmethod
-    def extract_articles(data):
+    def extract_articles(data: pd.DataFrame) -> List[str]:
+        """
+        Extract articles from the DataFrame.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing article data.
+
+        Returns:
+            List[str]: List of article texts.
+        """
         first_article = data.iloc[1, :]
         articles = data.loc[data['all_data'].str.startswith("\t"), "all_data"]
         articles = pd.concat([first_article, articles], axis=0).to_list()
         return articles
 
-    def calculate_dates(self, data):
+    def calculate_dates(self, data: pd.DataFrame) -> List[str]:
+        """
+        Calculate dates from the article data.
+
+        Parameters:
+            data (pd.DataFrame): DataFrame containing article data.
+
+        Returns:
+            List[str]: List of calculated dates.
+        """
         days_ago = data[data['all_data'].str.contains("days ago")]
         days_ago = days_ago['all_data'].str[:2].apply(
             lambda day_ago:
