@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from ForexForcasting.data_loader import ForexLoader, ConfigLoader, InterestRateLoader, InflationRateLoader, GDPGrowthRateLoader, EconNewsDataLoader
+from ForexForcasting.data_loader import ForexLoader, ConfigLoader, InterestRateLoader, InflationRateLoader, GDPGrowthRateLoader, EconNewsDataLoader, DataLoaderComposite
 from ForexForcasting.backtesting import TimeseriesBacktestDataset
 from ForexForcasting.backtesting import Backtester, BacktestWindow
 from ForexForcasting.models import RandomWalk, ARIMA, UIRPForecaster, TaylorRulesForecaster, AdaptiveHedge, LSTMForecaster
@@ -16,39 +16,18 @@ pd.set_option('display.width', 1000000)  # Set to None to display all columns
 
 
 def main(main_config):
-    forex_loader = ForexLoader()
-    interest_rate_loader = InterestRateLoader()
-    inflation_rate_loader = InflationRateLoader()
-    gdp_growth_rate_loader = GDPGrowthRateLoader()
-    econ_news_loader = EconNewsDataLoader(date_downloaded="2023-08-01")
 
-    forex_data = forex_loader.load(
-        source_type=main_config['general']['forex_source_type'],
-        path=main_config['general']['forex_data_path']
+    data_loader = DataLoaderComposite(
+        loaders={
+            "forex": ForexLoader(),
+            "interest_rate": InterestRateLoader(),
+            "inflation_rate": InflationRateLoader(),
+            "gdp_growth_rate": GDPGrowthRateLoader(),
+            "econ_news": EconNewsDataLoader(date_downloaded="2023-08-01")
+        },
+        config=config
     )
-    interest_rate_data = interest_rate_loader.load(
-        source_type=main_config['general']['interest_rate_source_type'],
-        path=main_config['general']['interest_rate_data_path']
-    )
-    inflation_rate_data = inflation_rate_loader.load(
-        source_type=main_config['general']['inflation_rate_source_type'],
-        path=main_config['general']['inflation_rate_data_path']
-    )
-    gdp_growth_rate_data = gdp_growth_rate_loader.load(
-        source_type=main_config['general']['gdp_growth_rate_source_type'],
-        path=main_config['general']['gdp_growth_rate_data_path']
-    )
-    econ_news_data = econ_news_loader.load(
-        source_type=main_config['general']['econ_news_source_type'],
-        path=main_config['general']['econ_news_data_path']
-    )
-    data = forex_data.merge(interest_rate_data, on=["currency_pair", 'date'])
-    data = data.merge(inflation_rate_data, on=["currency_pair", 'date'])
-    data = data.merge(gdp_growth_rate_data, on=["currency_pair", 'date'])
-    data = data.merge(econ_news_data, on=["currency_pair", 'date'])
-
-    data = data[data["currency_pair"] == "USD/CLP"]
-    data = data[data['date'].dt.year > 2015]
+    data = data_loader.load_data()
     backtest_dataset = TimeseriesBacktestDataset(
         dates=data['date'].to_list(),
         y_data=data['Close'].to_list(),

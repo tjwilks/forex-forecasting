@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import torch
 from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 from typing import List, Dict, Union
+from functools import reduce
+from configparser import ConfigParser
 
 class ConfigLoader:
     """
@@ -30,6 +32,7 @@ class ConfigLoader:
         with open(path, 'r') as j:
             config = json.loads(j.read())
         return config
+
 
 class DataLoader:
     """
@@ -498,3 +501,89 @@ class EconNewsDataLoader(DataLoader):
         dates = pd.to_datetime(dates.str[:10], format="%Y-%m-%d").dt.date
         dates = pd.concat([days_ago, dates], axis=0).to_list()
         return dates
+
+
+class DataLoaderComposite:
+    """
+    DataLoaderComposite class to load data from different sources using a
+    configuration input.
+
+    :param loaders: A dictionary of DataLoader instances for different data
+        types.
+    :param config: A ConfigParser instance containing configuration parameters
+        for data loading.
+
+    Methods:
+        load_data() -> pd.DataFrame:
+            Load and preprocess data based on the provided configuration.
+
+    """
+
+    def __init__(self, loaders: Dict[str, DataLoader], config: ConfigParser):
+        """
+        Initialize a DataLoaderComposite instance.
+
+        :param loaders: A dictionary of DataLoader instances for different
+        data types.
+        :param config: A ConfigParser instance containing configuration
+            parameters for data loading.
+        """
+        self.loaders = loaders
+        self.config = config
+
+    def load_data(self) -> pd.DataFrame:
+        """
+        Load and preprocess data based on the provided configuration.
+
+        :return: Loaded and preprocessed data as a pandas DataFrame.
+        """
+        prepared_data_source = self.config.get('general',
+                                               'prepared_data_source')
+        if prepared_data_source == "raw_files":
+            data = self.load_from_raw_files()
+        elif prepared_data_source.endswith(".csv"):
+            data = pd.read_csv(prepared_data_source)
+            data['date'] = pd.to_datetime(data['date'])
+        else:
+            raise ValueError(
+                "config variable prepared_data_source must be either "
+                "'raw_files' or a csv file")
+        data = self.apply_filters(data)
+        if self.config.getboolean('general', 'save_to_csv'):
+            save_path = self.config.get('general', 'path_to_save_to')
+            data.to_csv(save_path, index=False)
+        return data
+
+    def load_from_raw_files(self) -> pd.DataFrame:
+        """
+        Load and merge data from different sources using DataLoader instances.
+
+        :return: Merged dataset as a pandas DataFrame.
+        """
+        datasets = []
+        for loader_name, loader in self.loaders.items():
+            source_type = self.config.get('general',
+                                          f'{loader_name}_source_type')
+            data_path = self.config.get('general', f'{loader_name}_data_path')
+            dataset = loader.load(source_type=source_type, path=data_path)
+            datasets.append(dataset)
+        data = reduce(
+            lambda left, right: pd.merge(left, right,
+                                         on=["currency_pair", 'date']),
+            datasets
+        )
+        return data
+
+    def apply_filters(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply filters to the loaded data based on configuration.
+
+        :param data: Loaded data as a pandas DataFrame.
+
+        :return: Filtered data as a pandas DataFrame.
+        """
+        currency_pair = self.config.get('general', 'currency_pair')
+        min_year = int(self.config.get('general', 'min_year'))
+        data = data[data["currency_pair"] == currency_pair]
+        data = data[data['date'].dt.year > min_year]
+        return data
