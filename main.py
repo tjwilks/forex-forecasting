@@ -2,12 +2,13 @@ import configparser
 import os
 import sys
 
+import numpy as np
 import pandas as pd
 
 from ForexForcasting.data_loader import ForexLoader, ConfigLoader, InterestRateLoader, InflationRateLoader, GDPGrowthRateLoader
 from ForexForcasting.backtesting import TimeseriesBacktestDataset
 from ForexForcasting.backtesting import Backtester, BacktestWindow
-from ForexForcasting.models import RandomWalk, ARIMA, UIRPForecaster, TaylorRulesForecaster
+from ForexForcasting.models import RandomWalk, ARIMA, UIRPForecaster, TaylorRulesForecaster, AdaptiveHedge
 from ForexForcasting.results import ForecastResults
 from ForexForcasting.preprocessing import Preprocessor
 pd.set_option('display.max_columns', None)  # Set to None to display all columns
@@ -65,20 +66,55 @@ def main(main_config):
         UIRPForecaster(),
         TaylorRulesForecaster(num_lags=1),
     ]
-    backtester = Backtester(
+    primary_model_results = ForecastResults(backtest_dataset)
+    primary_model_backtester = Backtester(
         backtest_dataset=backtest_dataset,
         models=models,
-        results=ForecastResults(backtest_dataset),
-        preprocessor=preprocessor
+        results=primary_model_results,
+        preprocessor=preprocessor,
+        mode="primary_model"
     )
-    backtester.run()
-    backtester.results.plot_error_over_time(
-        list(range(len(backtester.results.forecast_datasets)))
+    primary_model_backtester.run()
+    forecasts_dataset = primary_model_backtester.results.get_forecasts_dataset()
+    preprocessor = Preprocessor({})
+    models = [
+        AdaptiveHedge(alpha=0.9, multiplier=1)
+    ]
+    model_selection_backtest_dataset = TimeseriesBacktestDataset(
+        dates=forecasts_dataset['date'],
+        y_data=forecasts_dataset['y_test'],
+        window=BacktestWindow(
+            n_obs=len(forecasts_dataset['date']),
+            train_window_len=10,
+            max_test_window_length=1
+        ),
+        regressor_data={
+            key: val
+            for key, val in forecasts_dataset.items()
+            if key not in ['date', 'y_test']
+        }
     )
-    backtester.results.calculate_mean_model_error(
-        list(range(len(backtester.results.forecast_datasets)))
+    model_selection_results = ForecastResults(model_selection_backtest_dataset)
+    model_selection_backtester = Backtester(
+        backtest_dataset=model_selection_backtest_dataset,
+        models=models,
+        results=model_selection_results,
+        preprocessor=preprocessor,
+        mode="model_selection"
     )
-
+    model_selection_backtester.run()
+    model_selection_date_range = [
+        forecast_dataset.dates_test[0] for window_index, forecast_dataset in
+         model_selection_backtester.results.forecast_datasets.items()]
+    model_selection_window_range = [
+        window_index for window_index, forecast_dataset in
+        model_selection_backtester.results.forecast_datasets.items() if
+        max(model_selection_date_range) >= forecast_dataset.dates_test[0] >= min(model_selection_date_range)
+    ]
+    primary_model_backtester.results.calculate_mean_model_error(
+        model_selection_window_range
+    )
+    model_selection_backtester.results.calculate_mean_model_error()
 
 
 if __name__ == '__main__':

@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Union
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.linear_model import LinearRegression
 import numpy as np
+import math
 
 
 class TimeSeriesModel(ABC):
@@ -249,3 +250,54 @@ class TaylorRulesForecaster(TimeSeriesModel):
             x += y_train[i-n_reg_lags:i]
             X.append(x)
         return np.array(X), np.array(y)
+
+
+class AdaptiveHedge(TimeSeriesModel):
+    _accepts_regressors = True
+
+    def __init__(self, alpha, multiplier):
+        self.alpha = alpha
+        self.multiplier = multiplier
+        self.weights = None
+
+    def fit(self, y_train, regressors_train):
+        self.fit_y_train = y_train
+        self.fit_regressors_train = regressors_train
+        exp_losses = {}
+        sum_losses = {}
+        for model_name, model_forecast in regressors_train.items():
+            model_error = [
+                abs(y_i-forecast_i)
+                for y_i, forecast_i in zip(y_train, model_forecast)
+            ]
+            exp_decay_error = [
+                ((1 - self.alpha)**(i+1))*error_val
+                for i, error_val in enumerate(model_error)
+            ]
+            sum_loss = np.abs(exp_decay_error).sum()
+            exp_loss = math.e ** (-self.multiplier * sum_loss)
+            sum_losses[model_name] = sum_loss
+            exp_losses[model_name] = exp_loss
+        sum_exp_losses = sum(exp_losses.values())
+        self.weights = {model_name: exp_loss / sum_exp_losses for
+                        model_name, exp_loss in exp_losses.items()}
+        self.is_fit = True
+
+    def predict(self, x):
+        weighted_forecasts = []
+        for model_name in self.weights.keys():
+            weighted_forecast = np.array(
+                [self.weights[model_name]*forecast
+                 for forecast in x[model_name]]
+            )
+            weighted_forecasts.append(weighted_forecast)
+        return sum(weighted_forecasts)
+
+    def get_weights(self):
+        if self.is_fit:
+            return np.array(list(self.weights.values()))
+        else:
+            raise ValueError("Method has not been fit to data yet")
+
+    def get_reference(self) -> str:
+        return "AdaptiveHedge"

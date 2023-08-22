@@ -181,6 +181,7 @@ class Backtester:
     forecasting models.
     :param results: An instance of YourResultsClass representing the results
     collector.
+    :param mode: either "primary_model" or "model_selection"
     """
     def __init__(
             self,
@@ -188,11 +189,13 @@ class Backtester:
             preprocessor: Preprocessor,
             models: List[TimeSeriesModel],
             results: ForecastResults,
+            mode: str
     ) -> None:
         self.backtest_dataset = backtest_dataset
         self.preprocessor = preprocessor
         self.models = models
         self.results = results
+        self.mode = mode
 
     def run(self):
         """
@@ -240,11 +243,10 @@ class Backtester:
         y_train = self.preprocessor.transform(y_train)
         y_test = self.preprocessor.transform(y_test)
         for model in self.models:
-            if model.accepts_regressors and regressors_train:
-                model.fit(y_train, regressors_train)
-                forecast = model.predict(horizon=len(y_test))
-            else:
-                model.fit(y_train)
+            model.fit(y_train=y_train, regressors_train=regressors_train)
+            if self.mode == "model_selection":
+                forecast = model.predict(regressors_test)
+            elif self.mode == "primary_model":
                 forecast = model.predict(horizon=len(y_test))
             forecast = self.preprocessor.inverse_transform(forecast)
             self.results.add_forecast(

@@ -5,6 +5,7 @@ import numpy as np
 from typing import List, Tuple, Dict, Any
 from datetime import datetime, timedelta
 
+
 class ForecastDataset:
     def __init__(self, y_train: List[float], y_test: List[float],
                  dates_train: List[str], dates_test: List[str]):
@@ -141,7 +142,7 @@ class ForecastResults:
             fig, ax = self.forecast_datasets[window_index].plot()
             plt.show()
 
-    def calculate_error_over_time(self, window_range: List[int]) -> pd.DataFrame:
+    def calculate_error_over_time(self, window_range: List[int] = None) -> pd.DataFrame:
         """
         Calculate the mean squared error for each forecast model over time.
 
@@ -152,6 +153,8 @@ class ForecastResults:
             pd.DataFrame: A DataFrame containing the error data over time for
             each model and window index.
         """
+        if window_range is None:
+            window_range = range(len(self.forecast_datasets))
         error_over_time = []
         for window_index in window_range:
             error = self.forecast_datasets[window_index].calculate_error()
@@ -160,13 +163,32 @@ class ForecastResults:
             error_over_time.append(error)
         return pd.DataFrame(error_over_time)
 
-    def calculate_mean_model_error(self, window_range: List[int]) -> None:
+    def get_forecasts_dataset(self, window_range: List[int] = None):
+        if window_range is None:
+            window_range = range(len(self.forecast_datasets))
+        forecasts_all = self.forecast_datasets[window_range[0]].forecasts.copy()
+        forecasts_all['date'] = [self.forecast_datasets[window_range[0]].dates_test[0]]
+        forecasts_all['y_test'] = [self.forecast_datasets[window_range[0]].y_test[0]]
+        for window_index in window_range[1:]:
+            forecasts = self.forecast_datasets[window_index].forecasts
+            for model_name, forecast in forecasts.items():
+                forecasts_all[model_name] += forecast
+            forecasts_all['date'].append(self.forecast_datasets[window_index].dates_test[0])
+            forecasts_all['y_test'].append(self.forecast_datasets[window_index].y_test[0])
+        forecasts_all = {
+            var_name: variable[::-1] for var_name, variable in forecasts_all.items()
+        }
+        return forecasts_all
+
+    def calculate_mean_model_error(self, window_range: List[int] = None) -> None:
         """
         Calculate and print the mean squared error for each forecast model.
 
         Parameters:
             window_range (List[int]): The range of window indices to consider.
         """
+        if window_range is None:
+            window_range = range(len(self.forecast_datasets))
         error_over_time = self.calculate_error_over_time(window_range)
         mean_model_error = error_over_time.drop(
             columns=['window_index', 'predict_from']

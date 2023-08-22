@@ -3,5 +3,9 @@
         "strategy": "simple",
         "args": {"strategy":  "mean"},
         "inverse_transform": false
+    },
+    "scaling": {
+        "strategy": "min_max",
+        "inverse_transform": true
     }
 }
