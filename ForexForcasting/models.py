@@ -4,7 +4,10 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import math
-
+import torch
+import torch.nn as nn
+import torch.utils.data as data
+torch.manual_seed(42)
 
 class TimeSeriesModel(ABC):
     _accepts_regressors: bool = False
@@ -301,3 +304,73 @@ class AdaptiveHedge(TimeSeriesModel):
 
     def get_reference(self) -> str:
         return "AdaptiveHedge"
+
+
+class LSTMBaseForecaster(nn.Module):
+
+    def __init__(self, input_size, hidden_size, num_layers):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.linear = nn.Linear(50, 1)
+
+    def forward(self, x):
+        x, _ = self.lstm(x)
+        x = self.linear(x)
+        return x
+
+
+class LSTMForecaster(TimeSeriesModel):
+    def __init__(self, input_size, hidden_size, num_layers, num_epochs):
+        self.model = LSTMBaseForecaster(input_size, hidden_size, num_layers)
+        self.loss_function = nn.MSELoss()
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+        self.num_epochs = num_epochs
+        self.training_data_for_predict = None
+
+    def fit(self, y_train, regressors_train=None):
+        x, y = [], []
+        for i in range(len(y_train) - 1):
+            feature = y_train[i:i + 1]
+            for regressor in regressors_train.values():
+                feature.append(regressor[i:i + 1][0])
+            target = y_train[i + 1:i + 1 + 1]
+            x.append(feature)
+            y.append(target)
+
+        x = torch.tensor(x)
+        y = torch.tensor(y)
+        dataset = data.TensorDataset(x, y)
+        loader = data.DataLoader(
+            dataset=dataset,
+            shuffle=True,
+            batch_size=8
+        )
+        for epoch in range(self.num_epochs):
+            self.model.train()
+            for X_batch, y_batch in loader:
+                y_pred = self.model(X_batch)
+                loss = self.loss_function(y_pred, y_batch)
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+        self.set_training_data_for_predict(y_train, regressors_train)
+
+    def predict(self, horizon):
+        predictions = []
+        with torch.no_grad():
+            y_pred = self.model(self.training_data_for_predict)
+            y_pred = y_pred[-1].item()
+            predictions.append(y_pred)
+        return predictions
+
+    def get_reference(self) -> str:
+        return f"LSTMForecaster"
+
+    def set_training_data_for_predict(self, y_train, regressors_train):
+        training_data_for_predict = []
+        for i in range(len(y_train)):
+            observation = [y_train[i]]
+            for regressor in regressors_train.values():
+                observation.append(regressor[i])
+            training_data_for_predict.append(observation)
+        self.training_data_for_predict = torch.tensor(training_data_for_predict)

@@ -8,7 +8,7 @@ import pandas as pd
 from ForexForcasting.data_loader import ForexLoader, ConfigLoader, InterestRateLoader, InflationRateLoader, GDPGrowthRateLoader, EconNewsDataLoader
 from ForexForcasting.backtesting import TimeseriesBacktestDataset
 from ForexForcasting.backtesting import Backtester, BacktestWindow
-from ForexForcasting.models import RandomWalk, ARIMA, UIRPForecaster, TaylorRulesForecaster, AdaptiveHedge
+from ForexForcasting.models import RandomWalk, ARIMA, UIRPForecaster, TaylorRulesForecaster, AdaptiveHedge, LSTMForecaster
 from ForexForcasting.results import ForecastResults
 from ForexForcasting.preprocessing import Preprocessor
 pd.set_option('display.max_columns', None)  # Set to None to display all columns
@@ -60,7 +60,8 @@ def main(main_config):
         regressor_data={
             "interest_rate_delta": data['interest_rate_delta'].to_list(),
             "inflation_rate_delta": data["inflation_rate_delta"].to_list(),
-            "gdp_growth_rate_delta": data['gdp_growth_rate_delta'].to_list()
+            "gdp_growth_rate_delta": data['gdp_growth_rate_delta'].to_list(),
+            "sentiment_score": data['sentiment_score'].to_list()
         }
     )
     config_loader = ConfigLoader()
@@ -73,6 +74,7 @@ def main(main_config):
         ARIMA(1, 1, 0),
         UIRPForecaster(),
         TaylorRulesForecaster(num_lags=1),
+        LSTMForecaster(5, 50, 1, 3)
     ]
     primary_model_results = ForecastResults(backtest_dataset)
     primary_model_backtester = Backtester(
