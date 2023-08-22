@@ -1,30 +1,18 @@
 # forex-forecasting 
-This package is for the development of models to forecast forex.
+This package is for the development of models to forecast forex. The package 
+itself is within the early development stage. It currently works using a single
+main script that loads data from various csv files and tests the forecast 
+performance of various machine learning and econometric models using backtesting. 
 
 
 ### Step-by-step setup and run main scripts from command line 
-1) Download forex data from Yahoo: https://finance.yahoo.com/quote/COP=X
-2) Configure config files <br />
-&nbsp; a) config/config.ini <br />
-&nbsp; &nbsp; i) "general-source_type" - dir for directory, csv for csv file <br />
-&nbsp; &nbsp; ii) "general-path" - paths to forex data directory or csv file
+1) Download forex data and regressor data from 
+https://drive.google.com/drive/folders/189yWLvS_tV4PaPWEpEOO57F6eb9peWbM?usp=share_link
+2) Configure config files to point to downloaded data or put data in package 
+directory and leave config file as is
 3) Ensure package directory is working directory
-4) run main.py config/config.ini (or own config file)
-
-### Package development requirements
-
-LSTM implementation
-1. implement LSTM model
-2. random walk comparison
-
-Sentiment analysis implementation
-1. trading economics news parser
-2. raw data to vector preparation
-3. BERT model implementation
-4. sentiment over time plotting
-
-Model selection and adaptive Hedge
-1. implement adaptive Hedge model
+4) run main.py config/config.ini (or own config file) to see comparison of 
+multiple models forecasting performance
 
 
 
