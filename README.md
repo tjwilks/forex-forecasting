@@ -12,7 +12,7 @@ https://drive.google.com/drive/folders/189yWLvS_tV4PaPWEpEOO57F6eb9peWbM?usp=sha
 directory and leave config file as is
 3) Ensure package directory is working directory
 4) run setup.py develop 
-5run main.py config/config.ini (or own config file) to see comparison of 
+5) run main.py config/config.ini (or own config file) to see comparison of 
 multiple models forecasting performance
 
 
