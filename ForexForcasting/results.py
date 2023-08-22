@@ -92,6 +92,11 @@ class ForecastDataset:
 
 
 class ForecastResults:
+    """
+      A class to store, analyse and export forecast results.
+
+    """
+
     def __init__(self, time_series_dataset: Any):
         """
         Initialize a ForecastResults object.
@@ -164,6 +169,19 @@ class ForecastResults:
         return pd.DataFrame(error_over_time)
 
     def get_forecasts_dataset(self, window_range: List[int] = None):
+        """
+        Get the aggregated forecast dataset for the specified window range.
+
+
+        :param window_range: The range of window indices to consider. If None, all
+            available windows will be considered.
+
+        :return: A dictionary containing aggregated forecast data for each model.
+            The keys are model names, and the values are lists of forecasted values.
+            The dictionary also contains 'date' and 'y_test' keys, which provide the
+            corresponding dates and true target values.
+        """
+
         if window_range is None:
             window_range = range(len(self.forecast_datasets))
         forecasts_all = self.forecast_datasets[window_range[0]].forecasts.copy()
